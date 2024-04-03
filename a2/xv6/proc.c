@@ -576,7 +576,29 @@ sched_policy(int pid, int policy)
 int
 exec_time(int pid, int exec_time)
 {
-  return 0;
+  struct proc *p;
+  // Non positive exec time as argument
+  if (exec_time <= 0)
+    return -22;
+  // Acquire ptable lock
+  acquire(&ptable.lock);
+  // Traverse the ptable to find the process
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid == pid) {
+      // Check if the parameter is already set (process has already been scheduled with some parameters once)
+      if(p->sched_policy == -1) {
+        release(&ptable.lock);
+        return -22;
+      }
+      // Set the parameter
+      p->exec_time = exec_time;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  // PID Invalid or not found
+  release(&ptable.lock);
+  return -22;
 }
 
 // Lgic for deadline syscall
@@ -592,4 +614,4 @@ rate(int pid, int rate)
 {
   return 0;
 }
-//////////////////////// Assignment - 2 //////////////////////////////////////////////
+//////////////////////// Assignment - 2 //////////////////////////////////////////////                          
