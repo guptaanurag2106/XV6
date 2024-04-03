@@ -89,3 +89,32 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+//////////////////////// Assignment - 2 //////////////////////////////////////////////
+// Syscall Wrapper to  sys_sched_policy
+int
+sys_sched_policy(void)
+{
+  return 0;
+}
+
+// Syscall Wrapper to  sys_exec_time
+int
+sys_exec_time(void)
+{
+  return 0;
+}
+
+// Syscall Wrapper to  sys_deadline
+int
+sys_deadline(void)
+{
+  return 0;
+}
+
+// Syscall Wrapper to  sys_rate
+int
+sys_rate(void)
+{
+  return 0;
+}
+//////////////////////// Assignment - 2 //////////////////////////////////////////////
