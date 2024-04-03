@@ -49,6 +49,15 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  //////////////////////// Assignment - 2 //////////////////////////////////////////////
+  short sched_policy;          // -1 : Round Robin, 0 : EDF and 1 : RMA
+  uint  exec_time;             // Total Number of ticks for which a Real Time process would run
+  uint  deadline;              // (For EDF) Number of ticks (relative to when first scheduled to run) within which the  Real Time Process should finish exceution
+  uint  arrival_time;          // Ticks Value at which the Real Time process is first created and arrives in run_queue (The point at which its scheduling policy is set)
+  uint  tot_runtime;           // Total Number of ticks for which the process has completed its execution on the unicore processor (across all context switches, starting from its creation)
+  uint  rate;                  // Instances per second of the program , paraeter for RMA
+  uint  weight;                // Priority assigned based on rate parameter for RMA
+  //////////////////////// Assignment - 2 //////////////////////////////////////////////
 };
 
 // Process memory is laid out contiguously, low addresses first:
