@@ -318,15 +318,15 @@ wait(void)
 struct proc*
 scheduler_edf(void)
 {
-  struct proc *p;
-  return p; // Pointer to the process chosen for scheduling
+  //struct proc *p;
+  return 0; // Pointer to the process chosen for scheduling
 }
 
 struct proc*
 scheduler_rma(void)
 {
-  struct proc *p;
-  return p; // Pointer to the process chosen for scheduling
+  //struct proc *p;
+  return 0; // Pointer to the process chosen for scheduling
 }
 //////////////////////// Assignment - 2 //////////////////////////////////////////////
 //PAGEBREAK: 42
@@ -585,8 +585,8 @@ exec_time(int pid, int exec_time)
   // Traverse the ptable to find the process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->pid == pid) {
-      // Check if the parameter is already set (process has already been scheduled with some parameters once)
-      if(p->sched_policy == -1) {
+      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      if(p->sched_policy != -1) {
         release(&ptable.lock);
         return -22;
       }
@@ -605,13 +605,57 @@ exec_time(int pid, int exec_time)
 int
 deadline(int pid, int deadline)
 {
-  return 0;
+  struct proc *p;
+  // Non positive exec time as argument
+  if (deadline <= 0)
+    return -22;
+  // Acquire ptable lock
+  acquire(&ptable.lock);
+  // Traverse the ptable to find the process
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid == pid) {
+      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      if(p->sched_policy != -1) {
+        release(&ptable.lock);
+        return -22;
+      }
+      // Set the parameter
+      p->deadline = deadline;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  // PID Invalid or not found
+  release(&ptable.lock);
+  return -22;
 }
 
 // Logic for rate syscall
 int
 rate(int pid, int rate)
 {
-  return 0;
+  struct proc *p;
+  // Non positive exec time as argument
+  if (rate <= 0)
+    return -22;
+  // Acquire ptable lock
+  acquire(&ptable.lock);
+  // Traverse the ptable to find the process
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid == pid) {
+      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      if(p->sched_policy != -1) {
+        release(&ptable.lock);
+        return -22;
+      }
+      // Set the parameter
+      p->rate = rate;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  // PID Invalid or not found
+  release(&ptable.lock);
+  return -22;
 }
 //////////////////////// Assignment - 2 //////////////////////////////////////////////                          
