@@ -337,7 +337,7 @@ wait(void)
 struct proc*
 scheduler_edf(void)
 {
-  struct proc *p, *sched_p;
+  struct proc *p, *sched_p = 0;
   // Variables to track deadline
   uint earliest_deadline = UINT32_MAX, current_deadline;
   // Traverse the ptable t find the process with earliest deadline, if same deadline then smallest pid
