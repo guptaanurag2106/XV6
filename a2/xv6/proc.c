@@ -88,7 +88,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  //////////////////////// Assignment - 2 //////////////////////////////////////////////
+  p->sched_policy = -1;
+  p->tot_runtime = 0;
+  //////////////////////// Assignment - 2 //////////////////////////////////////////////
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -311,6 +314,21 @@ wait(void)
   }
 }
 
+//////////////////////// Assignment - 2 //////////////////////////////////////////////
+struct proc*
+scheduler_edf(void)
+{
+  struct proc *p;
+  return p; // Pointer to the process chosen for scheduling
+}
+
+struct proc*
+scheduler_rma(void)
+{
+  struct proc *p;
+  return p; // Pointer to the process chosen for scheduling
+}
+//////////////////////// Assignment - 2 //////////////////////////////////////////////
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -354,6 +372,7 @@ scheduler(void)
 
   }
 }
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -532,3 +551,45 @@ procdump(void)
     cprintf("\n");
   }
 }
+//////////////////////// Assignment - 2 //////////////////////////////////////////////
+// Schedulibilty Check EDF
+int
+edf_schedulability_check(void)
+{
+  return 0;
+}
+
+// Schedulibilty Check RMA
+int
+rma_schedulability_check(void)
+{
+  return 0;
+}
+
+// Logic for sched_policy syscall
+int
+sched_policy(int pid, int policy)
+{
+  return 0;
+}
+// Logic for exec_time syscall
+int
+exec_time(int pid, int exec_time)
+{
+  return 0;
+}
+
+// Lgic for deadline syscall
+int
+deadline(int pid, int deadline)
+{
+  return 0;
+}
+
+// Logic for rate syscall
+int
+rate(int pid, int rate)
+{
+  return 0;
+}
+//////////////////////// Assignment - 2 //////////////////////////////////////////////
