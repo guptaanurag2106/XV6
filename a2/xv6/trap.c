@@ -100,12 +100,26 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
 
+  // // Force process to give up CPU on clock tick.
+  // // If interrupts were on while locks held, would need to check nlock.
+  // if(myproc() && myproc()->state == RUNNING &&
+  //    tf->trapno == T_IRQ0+IRQ_TIMER)
+  //   yield();
   // Force process to give up CPU on clock tick.
-  // If interrupts were on while locks held, would need to check nlock.
+  // If interrupts were on while locks held, would need to
+  // check nlock.
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER)
+    tf->trapno == T_IRQ0+IRQ_TIMER)
+  {
+    if((myproc()->sched_policy >= 0) &&
+      (myproc()->elapsed_time >= myproc()->exec_time))
+    {
+      cprintf("The arrival time and pid value of the completed process is %d %d\n", myproc()->rtp_arrival_time, myproc()->pid);
+      exit();
+    }
+    else
     yield();
-
+  }
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();

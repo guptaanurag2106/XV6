@@ -121,10 +121,10 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 //////////////////////// Assignment - 2 //////////////////////////////////////////////
-int             sched_policy(int, int);
-int             exec_time(int, int);
-int             deadline(int, int);
-int             rate(int, int);
+int             set_sched_policy(int, int);
+int             set_exec_time(int, int);
+int             set_deadline(int, int);
+int             set_rate(int, int);
 //////////////////////// Assignment - 2 //////////////////////////////////////////////
 
 // swtch.S

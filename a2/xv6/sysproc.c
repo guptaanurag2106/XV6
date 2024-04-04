@@ -94,27 +94,43 @@ sys_uptime(void)
 int
 sys_sched_policy(void)
 {
-  return 0;
+  int pid, policy;
+  // Check validity of arguments
+  if(argint(0, &pid) < 0 || argint(1, &policy) < 0) 
+    return -1;
+  return set_sched_policy(pid, policy);
 }
 
 // Syscall Wrapper to  sys_exec_time
 int
 sys_exec_time(void)
 {
-  return 0;
+  int pid, exec_time;
+  // Check validity of arguments
+  if(argint(0, &pid) < 0 || argint(1, &exec_time) < 0) 
+    return -1;
+  return set_exec_time(pid, exec_time);
 }
 
 // Syscall Wrapper to  sys_deadline
 int
 sys_deadline(void)
 {
-  return 0;
+  int pid, deadline;
+  // Check validity of arguments
+  if(argint(0, &pid) < 0 || argint(1, &deadline) < 0) 
+    return -1;
+  return set_deadline(pid, deadline);
 }
 
 // Syscall Wrapper to  sys_rate
 int
 sys_rate(void)
 {
-  return 0;
+  int pid, rate;
+  // Check validity of arguments
+  if(argint(0, &pid) < 0 || argint(1, &rate) < 0) 
+    return -1;
+  return set_rate(pid, rate);
 }
 //////////////////////// Assignment - 2 //////////////////////////////////////////////

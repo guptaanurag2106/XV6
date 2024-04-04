@@ -107,7 +107,7 @@ found:
   p->exec_time = 0;
   p->deadline = 0;
   p->rtp_arrival_time = 0;
-  p->tot_runtime = 0;
+  p->elapsed_time = 0;
   p->rate = 0;
   p->weight = 0;
   //////////////////////// Assignment - 2 //////////////////////////////////////////////
@@ -342,7 +342,7 @@ scheduler_edf(void)
   uint earliest_deadline = UINT32_MAX, current_deadline;
   // Traverse the ptable t find the process with earliest deadline, if same deadline then smallest pid
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-    if(p->state == RUNNABLE && p->sched_policy == 0) {
+    if((p->state == RUNNABLE || p->state == RUNNING) && p->sched_policy == 0) {
       // Calculate current deadline
       current_deadline = p->rtp_arrival_time + p->deadline;
       if(current_deadline < earliest_deadline) {
@@ -351,12 +351,8 @@ scheduler_edf(void)
       }
       else if(current_deadline == earliest_deadline) {
         if(p->pid < sched_p->pid)
-          sched_p = p;
-        else
-          continue;   
+          sched_p = p;  
       }
-      else
-        continue;
     }
   }
   return sched_p; // Pointer to the process chosen for scheduling
@@ -370,19 +366,15 @@ scheduler_rma(void)
   uint min_weight = UINT32_MAX;
   // Traverse the ptable t find the process with earliest deadline, if same deadline then smallest pid
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-    if(p->state == RUNNABLE && p->sched_policy == 0) {
+    if((p->state == RUNNABLE || p->state == RUNNING) && p->sched_policy == 1) {
       if(p->weight < min_weight) {
           min_weight = p->weight;
           sched_p = p;
       }
       else if(p->weight == min_weight) {
         if(p->pid < sched_p->pid)
-          sched_p = p;
-        else
-          continue;   
+          sched_p = p;  
       }
-      else
-        continue;
     }
   }
   return sched_p; // Pointer to the process chosen for scheduling
@@ -424,8 +416,8 @@ scheduler(void)
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
-      // Process ran for 1 tick
-      p->tot_runtime++;
+      // Process ran for 1 tick, Only tracked for Real Time Process
+      p->elapsed_time++; 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
@@ -447,8 +439,6 @@ scheduler(void)
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
-      // Process ran for 1 tick
-      p->tot_runtime++;
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
@@ -638,27 +628,29 @@ procdump(void)
 //////////////////////// Assignment - 2 //////////////////////////////////////////////
 // Schedulibilty Check EDF
 int
-edf_schedulability_check(void)
+edf_schedulability_check(int timer_ticks)
 {
-  struct proc *p; int deadline_miss = 0;
+  struct proc *p;
   // Total CPU Utilization in fraction (in simplest form), denoted by a numerator and denominator 
   int util_num = 0, util_den = 1;
   // Per process execution time and deadline
   int e_i, d_i;
   // Traverse the ptable to find set of edf scheduled RT processes
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    // Check if process is not in RUNNABLE or RUNNING or meant t be killed
+    if(! (p->state == RUNNABLE || p->state == RUNNING) || p->killed == 1)
+      continue;
     // Check if process is EDF scheduled
     if(p->sched_policy == 0) {
-      // Set e_i as exec_time - tot_runtime of the process
-      e_i = p->exec_time - p->tot_runtime;
+      // Set e_i as exec_time - elapsed_time of the process
+      e_i = p->exec_time - p->elapsed_time;
       // Set d_i as absoulte deadline - current ticks
       acquire(&tickslock);
-      d_i = p->rtp_arrival_time + p->deadline - ticks;
+      d_i = p->rtp_arrival_time + p->deadline - timer_ticks;
       release(&tickslock);
       // Check if e_i > d_i or d_i < 0
-      if(e_i > d_i || d_i < 0) {
-        deadline_miss = 1;
-        break;
+      if(e_i > d_i || d_i <= 0) {
+        return -22; // Deadline Missed
       }
       // Update util_num and utll_den
       util_num = util_num * d_i + e_i * util_den;
@@ -670,37 +662,43 @@ edf_schedulability_check(void)
     }
   }
   // Check if deadline miss doesnt occur & total utilization <= 1, If yes then schedulable
-  return (!deadline_miss && util_num <= util_den) ? 0 : -22;
+  return (util_num <= util_den) ? 0 : -22;
 }
 
 // Schedulibilty Check RMA
 int
-rma_schedulability_check(void)
+rma_schedulability_check(int timer_ticks)
 {
-  return 0;
+  
 }
 
 // Logic for sched_policy syscall
 int
-sched_policy(int pid, int policy)
+set_sched_policy(int pid, int policy)
 {
   struct proc *p;
   // Invalid policy argument
   if(policy < 0 || policy > 1)
     return -22;
   // Flags for valid_pid argument and to check if the parameters of a given policy are set before scheduling 
-  int valid_pid = 0, set_param = 0, schedulable;
+  int valid_pid = 0, set_param = 0, schedulable, timer_ticks;
+  // Read the timer_ticks count
+  acquire(&tickslock);
+  timer_ticks = ticks;
+  release(&tickslock);
   // Acquire ptable lock
   acquire(&ptable.lock);
   // Traverse the ptable and set the flags
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid) {
-      valid_pid = 1;
+      valid_pid = 1; // Pid found, argument is valid
+      // Check if the required parameters for EDF policy are set
       if(policy == 0) {
         if(p->exec_time && p->deadline) {
           set_param = 1;
         }
       }
+      // Check if the required parameters for RMA policy are set
       else {
         if(p->exec_time && p->rate) {
           set_param = 1;
@@ -712,16 +710,14 @@ sched_policy(int pid, int policy)
   // If invalid pid or parameters not set, the new ptable is schedulable as original was schedulable as well and no change in policy was made
   if(!valid_pid || !set_param) {
     release(&ptable.lock);
-    return 0; // The current set of processes is schedulable
+    return -1; // The current set of processes is schedulable / Wrong Call
   }
   // Set the sched_policy field
   p->sched_policy = policy;
-  // Set the rtp_arrival time, acquire ticks lock to avoid data race
-  acquire(&tickslock);
-  p->rtp_arrival_time = ticks;
-  release(&tickslock);
+  // Set the rtp_arrival time
+  p->rtp_arrival_time = timer_ticks;
   // Check schedulability according to the policy
-  schedulable = (policy == 0) ? edf_schedulability_check() : rma_schedulability_check();
+  schedulable = (policy == 0) ? edf_schedulability_check(timer_ticks) : rma_schedulability_check(timer_ticks);
   // if schedulable then return 0, otherwise kill the process
   if(schedulable == 0) {
     release(&ptable.lock);
@@ -733,7 +729,7 @@ sched_policy(int pid, int policy)
 }
 // Logic for exec_time syscall
 int
-exec_time(int pid, int exec_time)
+set_exec_time(int pid, int exec_time)
 {
   struct proc *p;
   // Non positive exec time as argument
@@ -744,11 +740,11 @@ exec_time(int pid, int exec_time)
   // Traverse the ptable to find the process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid) {
-      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
-      if(p->sched_policy != -1) {
-        release(&ptable.lock);
-        return -22;
-      }
+      // // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      // if(p->sched_policy != -1) {
+      //   release(&ptable.lock);
+      //   return -22;
+      // }
       // Set the parameter
       p->exec_time = exec_time;
       release(&ptable.lock);
@@ -762,7 +758,7 @@ exec_time(int pid, int exec_time)
 
 // Lgic for deadline syscall
 int
-deadline(int pid, int deadline)
+set_deadline(int pid, int deadline)
 {
   struct proc *p;
   // Non positive exec time as argument
@@ -773,11 +769,11 @@ deadline(int pid, int deadline)
   // Traverse the ptable to find the process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid) {
-      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
-      if(p->sched_policy != -1) {
-        release(&ptable.lock);
-        return -22;
-      }
+      // // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      // if(p->sched_policy != -1) {
+      //   release(&ptable.lock);
+      //   return -22;
+      // }
       // Set the parameter
       p->deadline = deadline;
       release(&ptable.lock);
@@ -791,7 +787,7 @@ deadline(int pid, int deadline)
 
 // Logic for rate syscall
 int
-rate(int pid, int rate)
+set_rate(int pid, int rate)
 {
   struct proc *p;
   // Non positive exec time as argument
@@ -802,13 +798,19 @@ rate(int pid, int rate)
   // Traverse the ptable to find the process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid) {
-      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
-      if(p->sched_policy != -1) {
-        release(&ptable.lock);
-        return -22;
-      }
+      // // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      // if(p->sched_policy != -1) {
+      //   release(&ptable.lock);
+      //   return -22;
+      // }
       // Set the parameter
       p->rate = rate;
+      if(p->rate <= 10)
+        p->weight = 3;
+      else if(p->rate <= 20)
+        p->weight = 2;
+      else
+        p->weight = 1;
       release(&ptable.lock);
       return 0;
     }
