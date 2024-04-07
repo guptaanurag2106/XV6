@@ -6,19 +6,54 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-#define UINT32_MAX 4294967295U
 
 //////////////////////// Assignment - 2 //////////////////////////////////////////////
-//// Helper Functions
-// Function to find the Greatest Common Divisor (GCD)
-int gcd(int a, int b) {
-    while (b != 0) {
-        int temp = b;
-        b = a % b;
-        a = temp;
-    }
-    return a;
+#define UINT32_MAX 4294967295U
+#define CEIL(a, b) (((a) + (b) - 1) / (b))
+
+////// Helper Functions and Hardcoded Values
+//// Helper Function to swap
+void
+swap(struct proc **a, struct proc **b)
+{
+    struct proc *temp = *a;
+    *a = *b;
+    *b = temp;
 }
+//// Helper Function for sorting, using QuickSort Algorithm
+// Partition function modified to accept a comparator function directly in its parameters
+int partition(struct proc **arr, int low, int high, int (*comp)(const struct proc *, const struct proc *))
+{
+    struct proc *pivot = arr[high];
+    int i = low - 1;
+    for (int j = low; j <= high - 1; j++) {
+        if (comp(arr[j], pivot) < 0) { // Using the comparator function
+            i++;
+            swap(&arr[i], &arr[j]);
+        }
+    }
+    swap(&arr[i + 1], &arr[high]);
+    return (i + 1);
+}
+// Quicksort function to sort an array of proc struct pointers
+void quicksort(struct proc **arr, int low, int high, int (*comp)(const struct proc *, const struct proc *))
+{
+    if (low < high) {
+        int pi = partition(arr, low, high, comp);
+        quicksort(arr, low, pi - 1, comp);
+        quicksort(arr, pi + 1, high, comp);
+    }
+}
+// n * (2^(1/n) - 1) , Precomputed CPU Utilization bounds for Liu Layland Schedulability check
+float liu_layland_bound[64] = {
+  1.0, 0.82842712, 0.77976315, 0.75682846, 0.74349177, 0.73477229, 0.7286266, 0.72406186, 0.72053765, 0.71773463,
+  0.71545198, 0.71355713, 0.71195899, 0.71059294, 0.70941184, 0.70838052, 0.70747218, 0.70666607, 0.70594584, 
+  0.70529848, 0.70471344, 0.70418215, 0.70369753, 0.70325368, 0.70284567, 0.70246932, 0.70212109, 0.70179794, 
+  0.70149725, 0.70121676, 0.7009545, 0.70070876, 0.70047801, 0.70026093, 0.70005633, 0.69986317, 0.69968052, 
+  0.69950754, 0.69934349, 0.69918768, 0.69903952, 0.69889845, 0.69876398, 0.69863566, 0.69851306, 0.69839583, 
+  0.6982836, 0.69817608, 0.69807296, 0.69797399, 0.69787892, 0.69778752, 0.69769958, 0.69761492, 0.69753334, 
+  0.69745469, 0.69737882, 0.69730557, 0.69723481, 0.69716642, 0.69710028, 0.69703628, 0.69697432, 0.69691431
+};
 //////////////////////// Assignment - 2 //////////////////////////////////////////////
 
 struct {
@@ -632,12 +667,12 @@ edf_schedulability_check(int timer_ticks)
 {
   struct proc *p;
   // Total CPU Utilization in fraction (in simplest form), denoted by a numerator and denominator 
-  int util_num = 0, util_den = 1;
+  float utilization = 0;
   // Per process execution time and deadline
   int e_i, d_i;
   // Traverse the ptable to find set of edf scheduled RT processes
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-    // Check if process is not in RUNNABLE or RUNNING or meant t be killed
+    // Check if process is not in RUNNABLE or RUNNING or meant to be killed
     if(! (p->state == RUNNABLE || p->state == RUNNING) || p->killed == 1)
       continue;
     // Check if process is EDF scheduled
@@ -645,31 +680,90 @@ edf_schedulability_check(int timer_ticks)
       // Set e_i as exec_time - elapsed_time of the process
       e_i = p->exec_time - p->elapsed_time;
       // Set d_i as absoulte deadline - current ticks
-      acquire(&tickslock);
       d_i = p->rtp_arrival_time + p->deadline - timer_ticks;
-      release(&tickslock);
       // Check if e_i > d_i or d_i < 0
       if(e_i > d_i || d_i <= 0) {
         return -22; // Deadline Missed
       }
-      // Update util_num and utll_den
-      util_num = util_num * d_i + e_i * util_den;
-      util_den = util_den * d_i;
-      // Simplify the fraction
-      int util_gcd = gcd(util_num, util_den);
-      util_num /= util_gcd;
-      util_den /= util_gcd;
+      // Update utililization
+      utilization += ((float) e_i) / d_i;
     }
   }
   // Check if deadline miss doesnt occur & total utilization <= 1, If yes then schedulable
-  return (util_num <= util_den) ? 0 : -22;
+  return (utilization <= 1.0) ? 0 : -22;
 }
 
-// Schedulibilty Check RMA
+//// Schedulibilty Check RMA
+int
+compare_rma(const struct proc *a, const struct proc *b)
+{
+  // Sort in descedning order
+  return b->rate - a->rate;
+}
+// Function to check Liu_Lehoczky's condition
+int
+liu_lehoczky_check(int num_proc)
+{
+  // Store the RMA scheduled processes in a proc
+  struct proc* proc_array[num_proc];
+  int index = 0;
+  for (int i = 0; i < NPROC; i++){
+    struct proc *p = &ptable.proc[i];
+    // Check if a process is not in RUNNABLE or RUNNING or meant to be killed
+    if(! (p->state == RUNNABLE || p->state == RUNNING) || p->killed == 1)
+      continue;
+    // Add the process to proc_array if scheduling policy is RMA
+    if (p->sched_policy == 1)
+      proc_array[index++] = p;
+  }
+  // Sort the array in decending order of rate
+  quicksort(proc_array, 0, num_proc - 1, compare_rma);
+  // Check if all processes meet their deadlines under zero_phasing (deadline = period)
+  for(int i = 0; i < num_proc; i++) {
+      // Calculate sum(p_i/p_j * e_j) for all interfering processes, this is the virtual execution time that has to be met within the deadline
+      int virtual_exec_time = proc_array[i]->exec_time;
+      for(int j = 0; j < i; j++) {
+          virtual_exec_time += CEIL(proc_array[j]->rate, proc_array[i]->rate) * proc_array[j]->exec_time;
+      }
+      // Check if virtual exec_time (in ticks) < period * 100 , or virtual exec_time (in ticks) * rate <= 100
+      if(virtual_exec_time * proc_array[i]->rate > 100)
+        return -22; // Condition violated, not schedulable
+  }
+  // All processes meet their deadlines under zero-phasing => Schedulable under RMA
+  return 0;
+}
+// Main RMA schedulibility check functiion
 int
 rma_schedulability_check(int timer_ticks)
 {
-  
+  struct proc *p;
+  int num_proc = 0; // Number of RMA Scheduled Processes
+  float utilization = 0; // Total CPU Utilization
+  // Traversing the ptable
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    // Check if process is not in RUNNABLE or RUNNING or meant to be killed
+    if(! (p->state == RUNNABLE || p->state == RUNNING) || p->killed == 1)
+      continue;
+    // Check if scheduling policy is 1 (RMA)
+    if (p->sched_policy == 1){
+      num_proc ++; // Incremenet num_proc
+      utilization += (p->exec_time * p->rate) * 0.01; // Utilization = exec_time * rate * 0.01(seconds / tick)
+    }
+  } 
+  // If no RMA scheduled process, the previous set of processes is schedulable
+  if (num_proc == 0)
+    return 0;
+  // If total utilizationis > 1, the set of processes is not schedulable under any scheduling policy
+  if (utilization > 1)
+    return -22; // CPU utilization can't be greater than 1
+  // Check for liu_layland condition
+  if (utilization <= liu_layland_bound[num_proc - 1])
+    return 0; // schedulable under RMA
+  // Check for Liu-Lehoczky's condition 
+  if (liu_lehoczky_check(num_proc) == 0)
+    return 0;
+  // Set of processes not schedulable under RMA
+  return -22;
 }
 
 // Logic for sched_policy syscall
@@ -740,11 +834,11 @@ set_exec_time(int pid, int exec_time)
   // Traverse the ptable to find the process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid) {
-      // // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
-      // if(p->sched_policy != -1) {
-      //   release(&ptable.lock);
-      //   return -22;
-      // }
+      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      if(p->sched_policy != -1) {
+        release(&ptable.lock);
+        return -22;
+      }
       // Set the parameter
       p->exec_time = exec_time;
       release(&ptable.lock);
@@ -756,7 +850,7 @@ set_exec_time(int pid, int exec_time)
   return -22;
 }
 
-// Lgic for deadline syscall
+// Logic for deadline syscall
 int
 set_deadline(int pid, int deadline)
 {
@@ -769,11 +863,11 @@ set_deadline(int pid, int deadline)
   // Traverse the ptable to find the process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid) {
-      // // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
-      // if(p->sched_policy != -1) {
-      //   release(&ptable.lock);
-      //   return -22;
-      // }
+      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      if(p->sched_policy != -1) {
+        release(&ptable.lock);
+        return -22;
+      }
       // Set the parameter
       p->deadline = deadline;
       release(&ptable.lock);
@@ -798,11 +892,11 @@ set_rate(int pid, int rate)
   // Traverse the ptable to find the process
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->pid == pid) {
-      // // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
-      // if(p->sched_policy != -1) {
-      //   release(&ptable.lock);
-      //   return -22;
-      // }
+      // Check if the parameter is already set (process has already been scheduled with some parameters  and a RT scheduling policyonce)
+      if(p->sched_policy != -1) {
+        release(&ptable.lock);
+        return -22;
+      }
       // Set the parameter
       p->rate = rate;
       if(p->rate <= 10)
