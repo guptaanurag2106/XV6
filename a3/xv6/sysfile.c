@@ -442,3 +442,38 @@ sys_pipe(void)
   fd[1] = fd1;
   return 0;
 }
+
+// Assignment 3
+void init_aslr_file(void)
+{
+  cprintf("Calling init_aslr_file");
+  struct file *f;
+  int fd;
+  char *val = "1";
+
+  struct inode *ip;
+  if((ip = namei(ASLR_FILE)) == 0){
+    if((ip = create(ASLR_FILE, T_FILE, 0, 0)) == 0){
+        cprintf("Cannot create aslr_flag file\n");
+        return;
+    }
+  }
+  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
+    if(f)
+      fileclose(f);
+    iunlockput(ip);
+    iput(ip);
+    cprintf("Cannot write aslr_flag file\n");
+    return;
+  }
+  iunlock(ip);
+
+  f->type = FD_INODE;
+  f->ip = ip;
+  f->off = 0;
+  f->readable = O_WRONLY;
+  f->writable = O_WRONLY;
+  filewrite(f, val, 1);
+  iput(ip);
+  cprintf("Written to aslr_flag file\n");
+}
