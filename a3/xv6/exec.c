@@ -3,6 +3,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "spinlock.h"
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
@@ -37,6 +38,32 @@ exec(char *path, char **argv)
 
   if((pgdir = setupkvm()) == 0)
     goto bad;
+
+  // Assignment 3
+  uint seed = get_seed();
+  randinit(seed);
+  int aslr_flag = 0;
+  char c;
+  struct inode *aslr_ip;
+  if ((aslr_ip = namei(ASLR_FILE)) == 0) {
+    cprintf("unable to open %s file\n", ASLR_FILE);
+  } 
+  else {
+    ilock(aslr_ip);
+    if (readi(aslr_ip, &c, 0, sizeof(char)) != sizeof(char)) {
+      cprintf("unable to read %s file\n", ASLR_FILE);
+    } else {
+      if(c == '1'){
+        aslr_flag = 1;
+      }
+      else{
+        aslr_flag = 0;
+      }
+    }
+    iunlock(aslr_ip);
+  }
+  if (aslr_flag == 1)
+    curproc->aslr_offset = get_rand();
 
   // Load program into memory.
   sz = 0;

@@ -112,6 +112,9 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // Assignment 3
+  p->aslr_offset = 0; // Set default aslr_offset as 0
+
   return p;
 }
 
