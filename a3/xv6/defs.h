@@ -185,16 +185,13 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
-
-// number of elements in fixed-size array
-#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
-
 // Assignment 3
-// sysfile.c
-void            init_aslr_file(void);
-
-#define RAND_MAX 10000000
-
+// // sysfile.c
+// void            init_aslr_file(void);
+// random.c
 void randinit(uint);
 uint get_seed(void);
 uint get_rand(void);
+// number of elements in fixed-size array
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
