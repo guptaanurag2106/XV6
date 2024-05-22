@@ -2,6 +2,7 @@
 #include "defs.h"
 #include "param.h"
 #include "x86.h"
+#include "date.h"
 // Random Number Generator Parameters
 #define LCG_A    1103515245
 #define LCG_C    12345
@@ -10,6 +11,7 @@
 
 // Define seed
 static uint seed;
+static struct rtcdate *clk;
 
 // Initialize the RNG with a given state
 void randinit(uint s) {
@@ -25,6 +27,9 @@ uint get_seed(void) {
     release(&tickslock);
     // XOR with bytes read from  Port 0x61.
     rng_state ^= (uint) inb(0x61);
+    // Fill up the struct time and read XOR with current time
+    cmostime(clk);
+    rng_state ^= (uint) clk->second;
     return rng_state;
 }
 

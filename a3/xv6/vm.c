@@ -192,7 +192,8 @@ inituvm(pde_t *pgdir, char *init, uint sz)
   memmove(mem, init, sz);
 }
 
-int loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
+int 
+loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 {
   uint i, pa, n;
   pte_t *pte;
@@ -205,10 +206,9 @@ int loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
         panic("loaduvm: address should exist");
     }
     pa = PTE_ADDR(*pte);
+    n = PGSIZE - page_offset;
     if (sz - i < n)
       n = sz - i; // Adjust for the last page
-    else 
-      n = PGSIZE - page_offset;
     if (readi(ip, P2V(pa) + page_offset, offset, n) != n)
         return -1;
     offset += n;  // Adjust the offset for next page

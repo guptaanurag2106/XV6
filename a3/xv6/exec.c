@@ -50,7 +50,7 @@ exec(char *path, char **argv)
     iunlock(aslr_ip);
   }
   // Generate a random offset if aslr is ON
-  if (aslr_flag == 1) {
+  if (curproc->pid > 2 && aslr_flag == 1) {
     // Get Random Seed
     uint seed = get_seed();
     // Initialize Random Number Generator
@@ -93,8 +93,8 @@ exec(char *path, char **argv)
   end_op();
   ip = 0;
 
-  // Allocate two pages at the next page boundary.
-  // Make the first inaccessible.  Use the second as the user stack.
+  // Allocate #stack_offset pages at the next page boundary.
+  // Make the first N-1  inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
   if((sz = allocuvm(pgdir, sz, sz + curproc->stack_offset*PGSIZE)) == 0)
     goto bad;
